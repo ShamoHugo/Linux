@@ -1,0 +1,17 @@
+还有一个容易忽略的地方：Linux IPv6
+如果你根本不用 IPv6，可以直接关闭：
+创建：
+sudo nano /etc/sysctl.d/99-disable-ipv6.conf
+
+写：
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.wlan0.disable_ipv6 = 1
+
+应用：
+sudo sysctl --system
+
+
+然后每次重启后使用clash-verge前先进行：
+
+sudo sysctl --system
