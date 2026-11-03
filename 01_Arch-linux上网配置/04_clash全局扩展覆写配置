@@ -1,0 +1,29 @@
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  listen: 127.0.0.1:53
+
+  # 用加密 DNS 做引导解析
+  default-nameserver:
+  - tls://1.1.1.1
+  - tls://8.8.8.8
+
+  # 普通域名解析
+  nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+
+  # 回退解析也使用 DoH
+  fallback:
+    - https://cloudflare-dns.com/dns-query
+    - https://dns.google/dns-query
+
+  # 代理节点域名解析
+  proxy-server-nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+
+  # DNS 请求遵循分流规则
+  respect-rules: true
