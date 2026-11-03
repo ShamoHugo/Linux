@@ -1,0 +1,102 @@
+以下是整理后的 CachyOS + Sway 图形认证代理（Polkit）配置指令。
+
+根据你提供的实际结果，系统已经安装并运行 polkit，但缺少图形认证代理。最终通过安装 lxqt-policykit 并加入 Sway 自动启动配置，已经成功解决。
+一、检查系统状态
+在 Foot（Fish）中直接复制执行：
+echo "===== 1. 权限工具 ====="
+command -v pkexec
+command -v sudo
+
+echo
+echo "===== 2. Polkit 服务 ====="
+systemctl status polkit.service --no-pager
+
+echo
+echo "===== 3. 已安装的认证组件 ====="
+pacman -Qs 'polkit|lxqt-policykit|polkit-gnome|mate-polkit'
+
+echo
+echo "===== 4. 当前认证代理进程 ====="
+pgrep -af 'polkit|lxqt-policykit|lxpolkit'
+
+
+二、检查 Sway 会话
+echo "===== 1. 当前桌面 ====="
+echo $XDG_CURRENT_DESKTOP
+
+echo
+echo "===== 2. 会话类型 ====="
+echo $XDG_SESSION_TYPE
+
+echo
+echo "===== 3. 当前终端 ====="
+tty
+
+echo
+echo "===== 4. Sway 配置中的认证代理 ====="
+grep -nEi 'polkit|lxqt-policykit|mate-polkit' ~/.config/sway/config
+
+
+三、安装图形认证代理
+如果尚未安装：
+sudo pacman -S lxqt-policykit
+
+
+注意：只安装认证代理，不需要安装完整 LXQt 桌面。
+四、手动启动并测试
+/usr/bin/lxqt-policykit-agent &
+
+
+重新打开 Clash Verge Rev，尝试安装服务模式。
+
+如果出现图形密码验证窗口，说明认证代理工作正常。
+五、设置 Sway 自动启动
+先备份现有配置：
+cp -n ~/.config/sway/config ~/.config/sway/config.bak
+
+
+检查是否已经存在启动配置：
+grep -nF 'exec /usr/bin/lxqt-policykit-agent' ~/.config/sway/config
+
+
+如果没有输出，再执行：
+printf '\n# Polkit graphical authentication agent\nexec /usr/bin/lxqt-policykit-agent\n' >> ~/.config/sway/config
+
+
+检查配置语法：
+sway -C -c ~/.config/sway/config
+
+
+如果没有错误，重新加载：
+swaymsg reload
+
+
+如果代理已经在当前会话中运行，不需要再次手动启动。
+六、最终验证
+echo "===== Polkit 服务 ====="
+systemctl is-active polkit.service
+
+echo
+echo "===== 认证代理进程 ====="
+pgrep -af lxqt-policykit-agent
+
+echo
+echo "===== Sway 启动配置 ====="
+grep -nF 'lxqt-policykit-agent' ~/.config/sway/config
+
+
+预期结果：
+检查项目	正常状态
+polkit.service	active
+lxqt-policykit-agent	有运行进程
+Sway 配置	有自动启动命令
+图形权限验证	能弹出密码窗口
+
+
+最终保留的核心配置只有一行：
+exec /usr/bin/lxqt-policykit-agent
+
+
+它负责让 Sway 在登录时启动图形认证代理。
+
+不需要修改 sudoers、Fish 环境变量、Foot 配置，也不需要安装完整 LXQt 或 MATE 认证桌面组件。
