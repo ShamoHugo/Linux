@@ -1,0 +1,44 @@
+这是因为你用的是 fish shell，而我之前给出的 <<'EOF' 是 Bash 的 here-document 写法，fish 不支持，所以报错了。抱歉。
+最简单的方式是直接用 printf 创建文件，不用切换 shell。
+1. 创建开启代理命令
+整段复制到终端执行：
+mkdir -p ~/.config/fish/functions
+
+printf '%s\n' \
+'function proxy_on' \
+'    set -gx http_proxy http://127.0.0.1:7897' \
+'    set -gx https_proxy http://127.0.0.1:7897' \
+'    set -gx all_proxy http://127.0.0.1:7897' \
+'    set -gx HTTP_PROXY $http_proxy' \
+'    set -gx HTTPS_PROXY $https_proxy' \
+'    set -gx ALL_PROXY $all_proxy' \
+'    echo "终端代理已开启 -> 127.0.0.1:7897"' \
+'end' \
+> ~/.config/fish/functions/proxy_on.fish
+
+
+2. 创建关闭代理命令
+printf '%s\n' \
+'function proxy_off' \
+'    set -e http_proxy https_proxy all_proxy' \
+'    set -e HTTP_PROXY HTTPS_PROXY ALL_PROXY' \
+'    echo "终端代理已关闭"' \
+'end' \
+> ~/.config/fish/functions/proxy_off.fish
+
+
+3. 使用
+以后在终端输入：
+proxy_on
+
+
+开启当前终端会话的代理；输入：
+proxy_off
+
+
+关闭当前终端会话的代理。
+可以用下面的命令检查：
+env | grep -i proxy
+
+
+注意： 这只控制当前终端及其启动的子进程，不会关闭 Clash Verge 本身，也不会改变系统代理或 TUN 模式。你配置的代理端口是 7897，只要 Clash Verge 的本地代理仍在运行，这两个命令就可以使用。
