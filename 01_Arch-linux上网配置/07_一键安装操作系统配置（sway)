@@ -1,0 +1,416 @@
+脚本按照你目前的 CachyOS + Sway 环境整理，并适配新电脑的用户名和家目录，不写死 /home/ui。
+第一步：创建安装目录
+在新电脑打开终端，完整执行：
+mkdir -p ~/CachyOS-Sway
+cd ~/CachyOS-Sway
+
+
+第二步：创建完整安装脚本
+执行：
+cat > install.fish <<'INSTALL_SCRIPT'
+#!/usr/bin/env fish
+
+# ==========================================
+# CachyOS + Sway 自动部署
+# ==========================================
+
+if test (id -u) -eq 0
+    echo "错误：请使用普通用户运行，不要使用 root。"
+    exit 1
+end
+
+if not test -f /etc/arch-release
+    echo "错误：当前系统不是 Arch Linux / CachyOS。"
+    exit 1
+end
+
+set stamp (date +%Y%m%d-%H%M%S)
+
+echo
+echo "========== 1. 安装软件包 =========="
+
+sudo pacman -S --needed \
+    sway \
+    foot \
+    fish \
+    swaybg \
+    wmenu \
+    grim \
+    brightnessctl \
+    playerctl \
+    thunar \
+    mousepad \
+    polkit \
+    lxqt-policykit \
+    fcitx5 \
+    fcitx5-chinese-addons \
+    fcitx5-gtk \
+    fcitx5-qt \
+    fcitx5-configtool \
+    pipewire \
+    pipewire-alsa \
+    pipewire-pulse \
+    wireplumber \
+    ufw \
+    lightdm \
+    lightdm-gtk-greeter
+
+if test $status -ne 0
+    echo "软件包安装失败，停止部署。"
+    exit 1
+end
+
+echo
+echo "========== 2. 备份已有配置 =========="
+
+for item in sway foot fish fcitx5 environment.d
+    if test -e "$HOME/.config/$item"
+        cp -a "$HOME/.config/$item" "$HOME/.config/$item.backup.$stamp"
+        echo "已备份：$item"
+    end
+end
+
+mkdir -p \
+    "$HOME/.config/sway" \
+    "$HOME/.config/foot" \
+    "$HOME/.config/fish" \
+    "$HOME/.config/fcitx5" \
+    "$HOME/.config/environment.d"
+
+echo
+echo "========== 3. 配置 Sway =========="
+
+cat > "$HOME/.config/sway/config" <<'SWAY'
+
+# ==========================================
+# Sway minimal desktop
+# ==========================================
+
+set $mod Mod4
+set $left h
+set $down j
+set $up k
+set $right l
+
+set $term foot
+set $menu wmenu-run
+
+# Wallpaper
+# 自动读取当前用户家目录中的壁纸
+exec sh -c 'if test -r "$HOME/图片/1.jpg"; then exec swaybg -i "$HOME/图片/1.jpg" -m fill; elif test -r "$HOME/Pictures/1.jpg"; then exec swaybg -i "$HOME/Pictures/1.jpg" -m fill; fi'
+
+# Authentication agent
+exec /usr/bin/lxqt-policykit-agent
+
+# Fcitx5 input method
+exec fcitx5 -d
+
+# Minimal appearance
+bar {
+    mode invisible
+    position top
+}
+
+default_border pixel none
+default_floating_border pixel none
+
+for_window [app_id="foot"] border none
+
+# Applications
+bindsym $mod+Return exec $term
+bindsym $mod+Shift+w exec firefox-esr
+bindsym $mod+n exec thunar
+bindsym $mod+Shift+o exec clash-verge
+bindsym $mod+m exec mousepad
+bindsym $mod+d exec $menu
+bindsym $mod+q kill
+
+# Reload / Exit
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+e exec swaynag -t warning -m 'Exit Sway?' -B 'Yes, exit Sway' 'swaymsg exit'
+
+# Focus windows
+bindsym $mod+$left focus left
+bindsym $mod+$down focus down
+bindsym $mod+$up focus up
+bindsym $mod+$right focus right
+
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+# Move windows
+bindsym $mod+Shift+$left move left
+bindsym $mod+Shift+$down move down
+bindsym $mod+Shift+$up move up
+bindsym $mod+Shift+$right move right
+
+# Workspaces
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+bindsym $mod+6 workspace number 6
+bindsym $mod+7 workspace number 7
+bindsym $mod+8 workspace number 8
+bindsym $mod+9 workspace number 9
+bindsym $mod+0 workspace number 10
+
+# Move windows to workspaces
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+bindsym $mod+Shift+6 move container to workspace number 6
+bindsym $mod+Shift+7 move container to workspace number 7
+bindsym $mod+Shift+8 move container to workspace number 8
+bindsym $mod+Shift+9 move container to workspace number 9
+bindsym $mod+Shift+0 move container to workspace number 10
+
+# Layout
+bindsym $mod+b splith
+bindsym $mod+v splitv
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+bindsym $mod+f fullscreen
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+space focus mode_toggle
+bindsym $mod+a focus parent
+
+# Scratchpad
+bindsym $mod+Shift+minus move scratchpad
+bindsym $mod+minus scratchpad show
+
+# Resize
+mode "resize" {
+    bindsym $left resize shrink width 10px
+    bindsym $down resize grow height 10px
+    bindsym $up resize shrink height 10px
+    bindsym $right resize grow width 10px
+
+    bindsym Left resize shrink width 10px
+    bindsym Down resize grow height 10px
+    bindsym Up resize shrink height 10px
+    bindsym Right resize grow width 10px
+
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+
+bindsym $mod+r mode "resize"
+
+# Audio
+bindsym --locked XF86AudioMute exec pactl set-sink-mute @DEFAULT_SINK@ toggle
+bindsym --locked XF86AudioLowerVolume exec pactl set-sink-volume @DEFAULT_SINK@ -5%
+bindsym --locked XF86AudioRaiseVolume exec pactl set-sink-volume @DEFAULT_SINK@ +5%
+bindsym --locked XF86AudioMicMute exec pactl set-source-mute @DEFAULT_SOURCE@ toggle
+
+# Media
+bindsym --locked XF86AudioPlay exec playerctl play-pause
+bindsym --locked XF86AudioPause exec playerctl play-pause
+bindsym --locked XF86AudioPrev exec playerctl previous
+bindsym --locked XF86AudioNext exec playerctl next
+bindsym --locked XF86AudioStop exec playerctl stop
+
+# Brightness
+bindsym --locked XF86MonBrightnessDown exec brightnessctl set 5%-
+bindsym --locked XF86MonBrightnessUp exec brightnessctl set 5%+
+
+# Screenshot
+bindsym Print exec grim
+
+# Touchpad
+# 不设置 events disabled，默认保持触摸板正常使用。
+
+include /etc/sway/config.d/*
+
+SWAY
+
+echo "Sway 配置已写入。"
+
+echo
+echo "========== 4. 配置 Foot =========="
+
+cat > "$HOME/.config/foot/foot.ini" <<'FOOT'
+[main]
+font=monospace:size=12:weight=bold
+pad=12x10
+resize-by-cells=no
+
+[colors-dark]
+alpha=0.3
+background=17191f
+foreground=e4e7ed
+regular0=252832
+regular1=e06c75
+regular2=98c379
+regular3=e5c07b
+regular4=61afef
+regular5=c678dd
+regular6=56b6c2
+regular7=bbc2cf
+bright0=5c6370
+bright1=ef596f
+bright2=a9cf8a
+bright3=ebc88d
+bright4=71b7ff
+bright5=d18be7
+bright6=63c8d3
+bright7=ffffff
+FOOT
+
+echo
+echo "========== 5. 配置 Fish =========="
+
+cat > "$HOME/.config/fish/config.fish" <<'FISH'
+source /usr/share/cachyos-fish-config/cachyos-config.fish
+FISH
+
+echo
+echo "========== 6. 配置 Fcitx5 =========="
+
+cat > "$HOME/.config/fcitx5/profile" <<'FCITX'
+[Groups/0]
+Name=默认
+Default Layout=us
+DefaultIM=pinyin
+
+[Groups/0/Items/0]
+Name=keyboard-us
+
+[Groups/0/Items/1]
+Name=pinyin
+
+[GroupOrder]
+0=默认
+FCITX
+
+cat > "$HOME/.config/environment.d/ime.conf" <<'IME'
+XMODIFIERS=@im=fcitx
+QT_IM_MODULE=fcitx
+GTK_IM_MODULE=fcitx
+IME
+
+echo
+echo "========== 7. 配置 IPv6 =========="
+
+if test -e /etc/sysctl.d/99-disable-ipv6.conf
+    sudo cp -a /etc/sysctl.d/99-disable-ipv6.conf \
+        "/etc/sysctl.d/99-disable-ipv6.conf.backup.$stamp"
+end
+
+sudo tee /etc/sysctl.d/99-disable-ipv6.conf >/dev/null <<'SYSCTL'
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+SYSCTL
+
+sudo sysctl --system
+
+echo
+echo "========== 8. 配置 UFW =========="
+
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo systemctl enable --now ufw.service
+
+echo
+echo "========== 9. 配置 LightDM =========="
+
+sudo install -d /etc/lightdm/lightdm.conf.d
+
+if test -e /etc/lightdm/lightdm.conf.d/50-cachyos-sway.conf
+    sudo cp -a \
+        /etc/lightdm/lightdm.conf.d/50-cachyos-sway.conf \
+        "/etc/lightdm/lightdm.conf.d/50-cachyos-sway.conf.backup.$stamp"
+end
+
+printf '[Seat:*]\ngreeter-session=lightdm-gtk-greeter\n' | \
+    sudo tee /etc/lightdm/lightdm.conf.d/50-cachyos-sway.conf >/dev/null
+
+sudo systemctl enable lightdm.service
+
+echo
+echo "========== 10. 检查 Sway 配置 =========="
+
+sway -C -c "$HOME/.config/sway/config"
+
+if test $status -ne 0
+    echo "Sway 配置检查失败。请不要注销，先检查错误。"
+    exit 1
+end
+
+echo
+echo "========== 部署完成 =========="
+echo
+echo "触摸板：默认保持启用"
+echo "状态栏：隐藏"
+echo "终端：Foot"
+echo "输入法：Fcitx5 拼音"
+echo "认证代理：LXQt PolicyKit"
+echo "登录管理器：LightDM"
+echo "防火墙：UFW"
+echo "IPv6：禁用"
+echo
+echo "壁纸请复制到：~/图片/1.jpg 或 ~/Pictures/1.jpg"
+echo "Firefox ESR 和 Clash Verge Rev 需要另行安装。"
+echo "本脚本不会安装或删除 MATE。"
+echo
+echo "请检查输出后再注销或重启。"
+
+INSTALL_SCRIPT
+
+
+第三步：运行安装
+cd ~/CachyOS-Sway
+fish install.fish
+
+
+安装过程需要输入当前用户密码，并确认软件包安装。
+第四步：重启前检查
+安装完成后，逐条执行：
+sway -C -c ~/.config/sway/config
+
+
+systemctl is-enabled lightdm.service
+systemctl is-active lightdm.service
+
+
+systemctl is-enabled ufw.service
+systemctl is-active ufw.service
+
+
+sysctl net.ipv6.conf.all.disable_ipv6
+sysctl net.ipv6.conf.default.disable_ipv6
+
+
+command -v foot
+command -v sway
+command -v fcitx5
+command -v lxqt-policykit-agent
+command -v swaybg
+command -v brightnessctl
+
+
+第五步：复制壁纸
+把原电脑的 1.jpg 复制到新电脑以下任意一个位置：
+~/图片/1.jpg
+
+
+或者：
+~/Pictures/1.jpg
+
+
+Sway 会在启动时自动读取。
+需要单独处理的软件
+以下两个软件目前不由脚本安装，因为它们属于第三方/AUR 软件：
+- Firefox ESR
+- Clash Verge Rev
+MATE 也没有纳入自动安装，因为你提供的当前电脑软件包清单没有检测到 MATE 软件包。
+
+最终触摸板状态：正常启用。 脚本没有写入 events disabled，不会主动关闭触摸板。
+
+注意： 这份脚本会将 LightDM 设为默认登录管理器，并设置 UFW 的默认入站、出站策略；如果新电脑已经使用其他登录管理器或有额外防火墙规则，请先检查再运行。
