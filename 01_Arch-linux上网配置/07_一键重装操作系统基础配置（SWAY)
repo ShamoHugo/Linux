@@ -1,0 +1,473 @@
+执行顺序：先创建家目录，再保存脚本，最后运行脚本。
+
+脚本会：
+- 使用现有的 ui 用户，不重新创建账户。
+- 将账户家目录设置为 /home/ui。
+- 安装 Sway、Foot、Fish、Fcitx5、Thunar 等软件。
+- 自动备份原有配置。
+- 保留触摸板默认行为。
+- 隐藏状态栏。
+- 配置 USB 自动挂载、音频和 IPv6。
+- 不包含 UFW，不更换登录管理器，不安装或删除 MATE。
+第一步：创建 /home/ui
+先在终端执行：
+getent passwd ui
+
+
+确认输出中有 ui 用户。如果存在，继续：
+sudo usermod -d /home/ui ui
+sudo install -d -o ui -g (id -gn ui) -m 750 /home/ui
+
+
+检查：
+getent passwd ui
+ls -ld /home/ui
+
+
+然后退出当前会话，重新以 ui 登录。
+第二步：创建安装脚本
+登录后打开 Foot，执行：
+mkdir -p /home/ui/安装文件
+cd /home/ui/安装文件
+nano install.fish
+
+
+把下面的完整脚本复制进去。
+第三步：完整 install.fish
+
+#!/usr/bin/env fish
+
+# ==========================================
+# CachyOS + Sway 极简桌面安装
+# 用户：ui
+# 家目录：/home/ui
+# ==========================================
+
+# 1. 检查用户
+
+if test (id -un) != ui
+    echo "错误：请使用 ui 用户运行。"
+    exit 1
+end
+
+set account_line (getent passwd ui)
+
+if test -z "$account_line"
+    echo "错误：系统中不存在 ui 用户。"
+    exit 1
+end
+
+set account_fields (string split ':' -- "$account_line")
+set account_home $account_fields[6]
+
+if test "$account_home" != /home/ui
+    echo "正在修正 ui 用户的家目录记录..."
+    sudo usermod -d /home/ui ui
+
+    if test $status -ne 0
+        echo "修改家目录失败。"
+        exit 1
+    end
+end
+
+set user_group (id -gn ui)
+
+sudo install -d -o ui -g "$user_group" -m 750 /home/ui
+
+if test "$HOME" != /home/ui
+    echo "当前 HOME=$HOME"
+    echo "请注销并重新以 ui 登录，再运行脚本。"
+    exit 1
+end
+
+# 2. 检查 sudo
+
+if not command -v sudo >/dev/null
+    echo "错误：没有安装 sudo。"
+    exit 1
+end
+
+echo ""
+echo "开始安装 CachyOS + Sway 桌面环境。"
+
+# 3. 安装软件
+
+set packages \
+    sway \
+    swaybg \
+    foot \
+    fish \
+    wmenu \
+    brightnessctl \
+    grim \
+    playerctl \
+    mousepad \
+    thunar \
+    thunar-volman \
+    gvfs \
+    gvfs-mtp \
+    udisks2 \
+    tumbler \
+    xfconf \
+    fcitx5 \
+    fcitx5-chinese-addons \
+    fcitx5-configtool \
+    fcitx5-gtk \
+    fcitx5-qt \
+    lxqt-policykit \
+    polkit \
+    pipewire \
+    pipewire-alsa \
+    pipewire-audio \
+    pipewire-pulse \
+    wireplumber \
+    xdg-desktop-portal \
+    xdg-desktop-portal-wlr \
+    xdg-desktop-portal-gtk
+
+echo "正在更新系统并安装软件包..."
+
+sudo pacman -Syu --needed $packages
+
+if test $status -ne 0
+    echo "软件安装失败，停止执行。"
+    exit 1
+end
+
+# 4. 创建配置目录
+
+mkdir -p \
+    /home/ui/.config/sway \
+    /home/ui/.config/foot \
+    /home/ui/.config/fish \
+    /home/ui/.config/fcitx5 \
+    /home/ui/.config/environment.d
+
+# 5. 备份旧配置
+
+set backup_time (date +%Y%m%d-%H%M%S)
+set backup_dir "/home/ui/.config-backup/$backup_time"
+
+mkdir -p "$backup_dir"
+
+for file in \
+    /home/ui/.config/sway/config \
+    /home/ui/.config/foot/foot.ini \
+    /home/ui/.config/fish/config.fish \
+    /home/ui/.config/fcitx5/profile \
+    /home/ui/.config/environment.d/ime.conf
+
+    if test -f "$file"
+        cp -a "$file" "$backup_dir/"
+    end
+end
+
+echo "配置备份位置：$backup_dir"
+
+# 6. Foot 配置
+
+printf '%s\n' \
+'[main]' \
+'font=monospace:size=12:weight=bold' \
+'pad=12x10' \
+'resize-by-cells=no' \
+'' \
+'[colors-dark]' \
+'alpha=0.3' \
+'background=17191f' \
+'foreground=e4e7ed' \
+'regular0=252832' \
+'regular1=e06c75' \
+'regular2=98c379' \
+'regular3=e5c07b' \
+'regular4=61afef' \
+'regular5=c678dd' \
+'regular6=56b6c2' \
+'regular7=bbc2cf' \
+'bright0=5c6370' \
+'bright1=ef596f' \
+'bright2=a9cf8a' \
+'bright3=ebc88d' \
+'bright4=71b7ff' \
+'bright5=d18be7' \
+'bright6=63c8d3' \
+'bright7=ffffff' \
+> /home/ui/.config/foot/foot.ini
+
+# 7. Fish 配置
+
+printf '%s\n' \
+'if test -f /usr/share/cachyos-fish-config/cachyos-config.fish' \
+'    source /usr/share/cachyos-fish-config/cachyos-config.fish' \
+'end' \
+> /home/ui/.config/fish/config.fish
+
+# 8. Fcitx5 拼音配置
+
+printf '%s\n' \
+'[Groups/0]' \
+'Name=默认' \
+'Default Layout=us' \
+'DefaultIM=pinyin' \
+'' \
+'[Groups/0/Items/0]' \
+'Name=keyboard-us' \
+'' \
+'[Groups/0/Items/1]' \
+'Name=pinyin' \
+'' \
+'[GroupOrder]' \
+'0=默认' \
+> /home/ui/.config/fcitx5/profile
+
+# 输入法环境变量
+
+printf '%s\n' \
+'GTK_IM_MODULE=fcitx' \
+'QT_IM_MODULE=fcitx' \
+'XMODIFIERS=@im=fcitx' \
+> /home/ui/.config/environment.d/ime.conf
+
+# 9. Sway 配置
+
+printf '%s\n' \
+'# ======================================' \
+'# Sway Minimal Configuration' \
+'# ======================================' \
+'' \
+'set $mod Mod4' \
+'set $term foot' \
+'set $menu wmenu-run' \
+'' \
+'font pango:monospace 12' \
+'default_border pixel 0' \
+'default_floating_border pixel 0' \
+'hide_edge_borders smart' \
+'' \
+'# 自动启动' \
+'exec fcitx5 -d' \
+'exec /usr/bin/lxqt-policykit-agent' \
+'exec sh -c '\''test -r "$HOME/图片/1.jpg" && exec swaybg -i "$HOME/图片/1.jpg" -m fill'\''' \
+'' \
+'# 程序快捷键' \
+'bindsym $mod+Return exec foot' \
+'bindsym $mod+d exec wmenu-run' \
+'bindsym $mod+n exec thunar' \
+'bindsym $mod+m exec mousepad' \
+'bindsym $mod+Shift+w exec firefox-esr' \
+'bindsym $mod+Shift+o exec clash-verge' \
+'' \
+'# 窗口操作' \
+'bindsym $mod+q kill' \
+'bindsym $mod+Shift+c reload' \
+'bindsym $mod+Shift+e exec swaynag -t warning -m "退出 Sway？" -b "退出" "swaymsg exit"' \
+'' \
+'# 焦点切换' \
+'bindsym $mod+h focus left' \
+'bindsym $mod+j focus down' \
+'bindsym $mod+k focus up' \
+'bindsym $mod+l focus right' \
+'bindsym $mod+Left focus left' \
+'bindsym $mod+Down focus down' \
+'bindsym $mod+Up focus up' \
+'bindsym $mod+Right focus right' \
+'' \
+'# 移动窗口' \
+'bindsym $mod+Shift+h move left' \
+'bindsym $mod+Shift+j move down' \
+'bindsym $mod+Shift+k move up' \
+'bindsym $mod+Shift+l move right' \
+'bindsym $mod+Shift+Left move left' \
+'bindsym $mod+Shift+Down move down' \
+'bindsym $mod+Shift+Up move up' \
+'bindsym $mod+Shift+Right move right' \
+'' \
+'# 工作区' \
+'bindsym $mod+1 workspace number 1' \
+'bindsym $mod+2 workspace number 2' \
+'bindsym $mod+3 workspace number 3' \
+'bindsym $mod+4 workspace number 4' \
+'bindsym $mod+5 workspace number 5' \
+'bindsym $mod+6 workspace number 6' \
+'bindsym $mod+7 workspace number 7' \
+'bindsym $mod+8 workspace number 8' \
+'bindsym $mod+9 workspace number 9' \
+'' \
+'# 移动窗口到工作区' \
+'bindsym $mod+Shift+1 move container to workspace number 1' \
+'bindsym $mod+Shift+2 move container to workspace number 2' \
+'bindsym $mod+Shift+3 move container to workspace number 3' \
+'bindsym $mod+Shift+4 move container to workspace number 4' \
+'bindsym $mod+Shift+5 move container to workspace number 5' \
+'bindsym $mod+Shift+6 move container to workspace number 6' \
+'bindsym $mod+Shift+7 move container to workspace number 7' \
+'bindsym $mod+Shift+8 move container to workspace number 8' \
+'bindsym $mod+Shift+9 move container to workspace number 9' \
+'' \
+'# 窗口布局' \
+'bindsym $mod+b splith' \
+'bindsym $mod+v splitv' \
+'bindsym $mod+s layout stacking' \
+'bindsym $mod+w layout tabbed' \
+'bindsym $mod+e layout toggle split' \
+'bindsym $mod+f fullscreen' \
+'bindsym $mod+Shift+space floating toggle' \
+'bindsym $mod+space focus mode_toggle' \
+'' \
+'# 音量' \
+'bindsym XF86AudioRaiseVolume exec pactl set-sink-volume @DEFAULT_SINK@ +5%' \
+'bindsym XF86AudioLowerVolume exec pactl set-sink-volume @DEFAULT_SINK@ -5%' \
+'bindsym XF86AudioMute exec pactl set-sink-mute @DEFAULT_SINK@ toggle' \
+'' \
+'# 媒体控制' \
+'bindsym XF86AudioPlay exec playerctl play-pause' \
+'bindsym XF86AudioNext exec playerctl next' \
+'bindsym XF86AudioPrev exec playerctl previous' \
+'' \
+'# 亮度' \
+'bindsym XF86MonBrightnessUp exec brightnessctl set +5%' \
+'bindsym XF86MonBrightnessDown exec brightnessctl set 5%-' \
+'' \
+'# 截图' \
+'bindsym Print exec grim "$HOME/图片/screenshot-$(date +%Y%m%d-%H%M%S).png"' \
+'' \
+'# 加载系统配置' \
+'include /etc/sway/config.d/*' \
+> /home/ui/.config/sway/config
+
+if test $status -ne 0
+    echo "Sway 配置写入失败。"
+    exit 1
+end
+
+# 10. USB 自动挂载设置
+
+echo "启用 USB 管理服务..."
+
+sudo systemctl enable --now udisks2.service
+
+if test $status -ne 0
+    echo "UDisks2 启动失败，请检查服务状态。"
+    exit 1
+end
+
+if command -v xfconf-query >/dev/null
+    xfconf-query -c thunar-volman -p /automount-drives --create -t bool -s true
+    xfconf-query -c thunar-volman -p /automount-media --create -t bool -s true
+end
+
+# 11. 音频服务
+
+echo "启用 PipeWire..."
+
+systemctl --user enable --now \
+    pipewire.socket \
+    pipewire-pulse.socket \
+    wireplumber.service
+
+# 12. IPv6 全局禁用
+
+echo "配置 IPv6..."
+
+printf '%s\n' \
+'net.ipv6.conf.all.disable_ipv6 = 1' \
+'net.ipv6.conf.default.disable_ipv6 = 1' \
+| sudo tee /etc/sysctl.d/99-disable-ipv6.conf >/dev/null
+
+sudo sysctl --system
+
+# 13. 检查 Sway 配置
+
+echo "检查 Sway 配置..."
+
+sway -C -c /home/ui/.config/sway/config
+
+if test $status -ne 0
+    echo "Sway 配置检查失败。"
+    echo "原配置备份：$backup_dir"
+    exit 1
+end
+
+# 14. 完成
+
+echo ""
+echo "=================================="
+echo "CachyOS + Sway 部署完成"
+echo "=================================="
+echo "用户：ui"
+echo "家目录：/home/ui"
+echo "终端：Foot"
+echo "Shell：Fish"
+echo "输入法：Fcitx5 拼音"
+echo "文件管理器：Thunar"
+echo "状态栏：隐藏"
+echo "触摸板：保留默认设置"
+echo "IPv6：全局禁用"
+echo "备份：$backup_dir"
+echo ""
+echo "请注销并重新登录 Sway。"
+echo "Firefox ESR 和 Clash Verge Rev 需要另行安装。"
+echo "壁纸文件位置：/home/ui/图片/1.jpg"
+
+
+
+第四步：保存并运行
+在 Nano 中：
+1. 按 Ctrl + O 保存。
+2. 按 Enter 确认。
+3. 按 Ctrl + X 退出。
+壁纸启动行请使用下面这个简单版本，替换脚本中原来的复杂壁纸行：
+'exec swaybg -i /home/ui/图片/1.jpg -m fill' \
+
+
+这样不需要额外的 Shell 引号处理。确保图片确实存在于该路径。
+
+然后运行：
+cd /home/ui/安装文件
+fish install.fish
+
+
+如果脚本运行成功，注销并重新登录 Sway。
+第五步：检查运行结果
+重新登录后，依次执行：
+
+检查用户和家目录
+whoami
+echo $HOME
+
+
+预期：
+ui
+/home/ui
+
+
+检查 Sway
+sway --version
+echo $XDG_SESSION_TYPE
+
+
+检查输入法
+pgrep -af fcitx5
+fcitx5-remote
+
+
+检查 USB
+systemctl status udisks2
+lsblk -f
+
+
+检查认证代理
+pgrep -af lxqt-policykit-agent
+
+
+检查音频
+systemctl --user status pipewire pipewire-pulse wireplumber
+
+
+
+重要说明：
+- Firefox ESR 和 Clash Verge Rev 没有包含在安装包列表中，因此对应快捷键需要在安装这两个软件后才能使用。
+- IPv6 配置是全局禁用，不绑定 wlan0。
+- 如果脚本报错，请保留完整错误输出，不要反复运行安装脚本覆盖配置。先根据报错定位问题。
+- 原有配置备份在 /home/ui/.config-backup/。
+这次先完成基础部署，不要同时进行其他桌面美化操作。
